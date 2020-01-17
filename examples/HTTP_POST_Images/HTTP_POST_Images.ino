@@ -1,30 +1,33 @@
 #include "OV2640.h"
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
+#include <WiFiClient.h>
 #include <ArduinoJson.h>
 #include "time.h"
+#include "http_post_image_config.h"
+#include "esp_system.h"
 
-#define HTTPS_HOST              "www.bigiot.net"
-#define HTTPS_PORT              443
-#define BIGIOT_API_KEY          "<Your BIGIOT API Key>"      // Put your API Key here
-#define BIGIOT_DEVICE_ID        "<Your BIGIOT Device ID>"
-#define BIGIOT_INTERFACE_ID     "<Your BIGIOT Interface ID>"
-const char *ssid =              "<Your wifi ssid>";      // Put your SSID here
-const char *password =          "<Your wifi password>";  // Put your PASSWORD here
+// ##################################################################
+// ## NOTE: You MUST set secret values in http_post_image_config.h ##
+// ##################################################################
+
+const char *ssid =              WIFI_SSID;     
+const char *password =          WIFI_PASSWORD; 
 const char *ntpServer =         "pool.ntp.org";
 const long gmtOffset_sec =      3600;
 const int daylightOffset_sec =  3600;
 
-char *request_content = "--------------------------ef73a32d43e7f04d\r\n"
-                        "Content-Disposition: form-data; name=\"data\"; filename=\"%s.jpg\"\r\n"
+char *request_content = "--------------------------ef73a32d42e7f04d\r\n"
+                        "Content-Disposition: form-data; name=\"file\"; filename=\"%s.jpg\"\r\n"
                         "Content-Type: image/jpeg\r\n\r\n";
 
-char *request_end = "\r\n--------------------------ef73a32d43e7f04d--\r\n";
+char *request_end = "\r\n--------------------------ef73a32d42e7f04d--\r\n";
 
 
 OV2640 cam;
-WiFiClientSecure client;
-StaticJsonBuffer<512> jsonBuffer;
+//TODO make https 
+// WiFiClientSecure client;
+WiFiClient client;
+StaticJsonDocument<512> jsonDoc;
 
 void update_image(void)
 {
@@ -53,14 +56,12 @@ void update_image(void)
 
     uint32_t content_len = cam.getSize() + strlen(buf) + strlen(request_end);
 
-
-    String request = "POST /pubapi/uploadImg/did/"BIGIOT_DEVICE_ID"/inputid/"BIGIOT_INTERFACE_ID" HTTP/1.1\r\n";
-    request += "Host: www.bigiot.net\r\n";
+    String request = "POST / HTTP/1.1\r\n";
+    request += "Host: "HTTPS_HOST"\r\n";
     request += "User-Agent: TTGO-Camera-Demo\r\n";
     request += "Accept: */*\r\n";
-    request += "API-KEY: " + String(BIGIOT_API_KEY) + "\r\n";
     request += "Content-Length: " + String(content_len) + "\r\n";
-    request += "Content-Type: multipart/form-data; boundary=------------------------ef73a32d43e7f04d\r\n";
+    request += "Content-Type: multipart/form-data; boundary=------------------------ef73a32d42e7f04d\r\n";
     request += "Expect: 100-continue\r\n";
     request += "\r\n";
 
@@ -98,44 +99,59 @@ void update_image(void)
 
     bzero(status, sizeof(status));
     client.readBytesUntil('\r', status, sizeof(status));
-    if (strncmp(status, "HTTP/1.1 200 OK", strlen("HTTP/1.1 200 OK")))
-    {
-        Serial.print("Unexpected response: ");
-        Serial.println(status);
-        client.stop();
-        return;
-    }
+    Serial.print("Response: ");
+    Serial.println(status);
 
-    if (!client.find("\r\n\r\n"))
-    {
-        Serial.println("Invalid response");
-    }
+    //TODO Example of checking response:
+    // if (strncmp(status, "HTTP/1.1 200 OK", strlen("HTTP/1.1 200 OK")))
+    // {
+    //     Serial.print("Unexpected response: ");
+    //     Serial.println(status);
+    //     client.stop();
+    //     return;
+    // }
 
-    request = client.readStringUntil('\n');
+    // if (!client.find("\r\n\r\n"))
+    // {
+    //     Serial.println("Invalid response");
+    // }
 
-    char *str = strdup(request.c_str());
-    if (!str)
-    {
-        client.stop();
-        return;
-    }
+    // request = client.readStringUntil('\n');
 
-    char *start = strchr(str, '{');
+    // char *str = strdup(request.c_str());
+    // if (!str)
+    // {
+    //     client.stop();
+    //     return;
+    // }
 
-    JsonObject &root = jsonBuffer.parseObject(start);
-    if (!root.success())
-    {
-        Serial.println("parse data fail");
-        client.stop();
-        free(str);
-        return;
-    }
-    if (!strcmp((const char *)root["R"], "1"))
-    {
-        Serial.println("Update Success");
-    }
-    free(str);
+    // char *start = strchr(str, '{');
+    // deserializeJson(jsonDoc, start);
+    // JsonObject root = jsonDoc.as<JsonObject>();
+    // if (root.isNull())
+    // {
+    //     Serial.println("parse data fail");
+    //     client.stop();
+    //     free(str);
+    //     return;
+    // }
+    // if (!strcmp((const char *)root["R"], "1"))
+    // {
+    //     Serial.println("Update Success");
+    // }
+    // free(str);
     client.stop();
+}
+
+
+// MAC address is a unique hex number that identifies the wifi hardware device
+static String getMACAddress() 
+{
+  uint8_t baseMac[6];
+  esp_read_mac(baseMac, ESP_MAC_WIFI_STA);
+  char baseMacChr[18] = {0};
+  sprintf(baseMacChr, "%02X:%02X:%02X:%02X:%02X:%02X", baseMac[0], baseMac[1], baseMac[2], baseMac[3], baseMac[4], baseMac[5]);
+  return String(baseMacChr);
 }
 
 void setup()
@@ -145,6 +161,9 @@ void setup()
     {
         ;
     }
+    Serial.print("mac address: ");
+    Serial.println(getMACAddress());
+
     camera_config_t camera_config;
     camera_config.ledc_channel = LEDC_CHANNEL_0;
     camera_config.ledc_timer = LEDC_TIMER_0;
@@ -179,7 +198,6 @@ void setup()
     Serial.println(F("WiFi connected"));
     Serial.println("");
     Serial.println(WiFi.localIP());
-
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 }
 
