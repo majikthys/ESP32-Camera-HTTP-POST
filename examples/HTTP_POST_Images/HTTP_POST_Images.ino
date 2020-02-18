@@ -2,11 +2,11 @@
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include "time.h"
-#include "http_post_image_config.h"
+#include "HTTP_POST_Images_Util.h"
 #include "esp_system.h"
 
 // ##################################################################
-// ## NOTE: You MUST set secret values in http_post_image_config.h ##
+// ## NOTE: You MUST set secret values in HTTP_POST_Images_Util.h ##
 // ##################################################################
 
 const char *ssid =              WIFI_SSID;     

@@ -7,4 +7,4 @@ Each example is tested using the TTGO T-Journal.
 This project was forked from [TTGO ESP32-Camera](https://github.com/LilyGO/ESP32-Camera), which itself was ultimately based on [esp32-cam-demo](https://github.com/igrr/esp32-cam-demo) changes and is used in Arduino.
 
  # How to use
-- configure http_post_image_config.h w/ wifi info and target http server.
+- configure HTTP_POST_Images_Util.h w/ wifi info and target http server.
